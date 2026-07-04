@@ -1,6 +1,6 @@
 ﻿# 📊 ScoreAtlas
 
-**成绩对比分析工具**
+** 成绩对比分析工具 **
 
 ![Vanilla JS](https://img.shields.io/badge/vanilla-JS-f7df1e)
 ![SheetJS](https://img.shields.io/badge/sheetjs-0.20-blue)
