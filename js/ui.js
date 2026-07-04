@@ -1,4 +1,4 @@
-import { computeScoreDiffs, computeRankDiffs, formatDiffCell, getRankLabel } from "./analyzer.js";
+﻿import { computeScoreDiffs, computeRankDiffs, formatDiffCell, getRankLabel } from "./analyzer.js";
 import { renderTrendCharts } from "./charts.js";
 import { exportXLSX, exportCSV } from "./exporter.js";
 import { matchStudents } from "./matcher.js";
@@ -55,11 +55,11 @@ export function renderCards(state) {
     card.style.animationDelay = (orderIdx * 0.08) + "s";
     card.setAttribute("data-idx", fileIdx);
     card.innerHTML =
-      '<div class="card-drag-handle"><span></span><span></span><span></span></div>' +
-      '<div class="card-order">' + (orderIdx + 1) + '</div>' +
-      '<div class="card-info"><div class="card-filename" title="' + escapeHtml(file.filename) + '">' + escapeHtml(file.filename) + '</div>' +
-      '<div class="card-meta">' + file.subjects.length + ' \u79d1 \u00b7 ' + file.students.length + ' \u540d\u5b66\u751f</div></div>' +
-      '<button class="card-remove" data-idx="' + fileIdx + '" title="\u79fb\u9664">\u00d7</button>';
+      "<div class=\"card-drag-handle\"><span></span><span></span><span></span></div>" +
+      "<div class=\"card-order\">" + (orderIdx + 1) + "</div>" +
+      "<div class=\"card-info\"><div class=\"card-filename\" title=\"" + escapeHtml(file.filename) + "\">" + escapeHtml(file.filename) + "</div>" +
+      "<div class=\"card-meta\">" + file.subjects.length + " 科 · " + file.students.length + " 名学生</div></div>" +
+      "<button class=\"card-remove\" data-idx=\"" + fileIdx + "\" title=\"移除\">×</button>";
     card.querySelector(".card-remove").addEventListener("click", function(e) {
       e.stopPropagation();
       removeFile(state, fileIdx);
@@ -74,8 +74,8 @@ export function renderCards(state) {
 function updateFileCountHint(state) {
   var remain = Math.max(0, 2 - state.files.length);
   dom.fileCountHint.textContent = remain > 0
-    ? "\u81f3\u5c11\u9700\u8981 2 \u4e2a\u6587\u4ef6\uff08\u8fd8\u9700 " + remain + " \u4e2a\uff09"
-    : "\u5df2\u6ee1\u8db3\u6700\u4f4e\u8981\u6c42\uff0c\u53ef\u4ee5\u7ee7\u7eed\u6dfb\u52a0\u66f4\u591a\u6587\u4ef6";
+    ? "至少需要 2 个文件（还需 " + remain + " 个）"
+    : "已满足最低要求，可以继续添加更多文件";
 }
 
 export function rerunMatching(state) {
@@ -263,6 +263,9 @@ export function initDragDrop(state) {
 }
 
 /* ===== Table ===== */
+// View mode: "scores" or "ranks"
+let tableViewMode = "scores";
+
 export function updateTable(state) {
   nextPage = true;
   var files = state.files, fileOrder = state.fileOrder, matchedResult = state.matchedResult;
@@ -270,7 +273,20 @@ export function updateTable(state) {
   dom.resultArea.classList.add("visible");
   var orderedFiles = fileOrder.map(function(i) { return files[i]; });
   var students = matchedResult.students, allSubjects = matchedResult.allSubjects, allRankTypes = matchedResult.allRankTypes, allTotalLabels = matchedResult.allTotalLabels;
-  var SUBJ_ORDER = ["\u8bed\u6587","\u6570\u5b66","\u82f1\u8bed","\u7269\u7406","\u5316\u5b66","\u751f\u7269","\u653f\u6cbb","\u5386\u53f2","\u5730\u7406"];
+  var hasInline = matchedResult.hasInlineRanks;
+  var allSubjRankTypes = matchedResult.allSubjectRankTypes || [];
+
+  // Sort all rank type labels for consistent multi-rank column ordering
+  var rankOrderMap = { "???": 1, "???": 2, "???": 3 };
+  var allRankTypeLabels = Array.from(allSubjRankTypes).sort(function(a, b) {
+    var ao = rankOrderMap[a] || 99, bo = rankOrderMap[b] || 99;
+    if (ao !== bo) return ao - bo;
+    return a.localeCompare(b);
+  });
+  var rankCount = allRankTypeLabels.length;
+  var categoryTotalLabels = matchedResult.categoryTotalLabels || [];
+
+  var SUBJ_ORDER = ["语文","数学","英语","物理","化学","生物","政治","历史","地理"];
   var sortedSubjects = allSubjects.filter(function(s) { return s; }).sort(function(a, b) {
     var ai = SUBJ_ORDER.indexOf(a), bi = SUBJ_ORDER.indexOf(b);
     if (ai >= 0 && bi >= 0) return ai - bi;
@@ -278,74 +294,224 @@ export function updateTable(state) {
     if (bi >= 0) return 1;
     return a.localeCompare(b);
   });
-  var html = '<tr><th class="col-name" rowspan="2">\u59d3\u540d</th>';
-  for (var si = 0; si < sortedSubjects.length; si++) {
-    html += '<th class="col-subject" colspan="2">' + escapeHtml(sortedSubjects[si]) + '</th>';
-  }
-  if (allTotalLabels.length > 0) {
-    html += '<th class="col-subject" colspan="2">' + escapeHtml(allTotalLabels[0] || "\u603b\u5206") + '</th>';
-  }
-  for (var ti = 0; ti < allRankTypes.length; ti++) {
-    html += '<th class="col-subject" colspan="2">' + escapeHtml(getRankLabel(allRankTypes[ti])) + '</th>';
-  }
-  html += '</tr><tr>';
-  for (var sj = 0; sj < sortedSubjects.length; sj++) {
-    html += '<th class="col-score">\u6210\u7ee9</th><th class="col-diff">\u8fdb\u9000</th>';
-  }
-  if (allTotalLabels.length > 0) html += '<th class="col-score">\u6210\u7ee9</th><th class="col-diff">\u8fdb\u9000</th>';
-  for (var tj = 0; tj < allRankTypes.length; tj++) {
-    html += '<th class="col-score">\u6392\u540d</th><th class="col-diff">\u8fdb\u9000</th>';
-  }
-  html += '</tr>';
-  dom.tableHead.innerHTML = html;
 
-  var bodyHtml = "";
-  for (var sti = 0; sti < students.length; sti++) {
-    var student = students[sti];
-    bodyHtml += '<tr><td class="name-col">' + escapeHtml(student.name) + '</td>';
-    for (var sk = 0; sk < sortedSubjects.length; sk++) {
-      var subj = sortedSubjects[sk];
-      var scores = student["score_" + subj] || [];
-      var diffs = computeScoreDiffs(scores);
-      bodyHtml += '<td>' + scores.map(function(s, i) {
-        return student.missing[i] ? '<span class="cell-missing">\u7f3a\u8003</span>' : (s != null ? s : "-");
-      }).join("  ") + '</td>';
-      bodyHtml += '<td>' + diffs.map(function(d) {
-        var c = formatDiffCell(d, "score");
-        return '<span class="' + c.className + '">' + c.display + '</span>';
-      }).join("  ") + '</td>';
+  // Build table header
+  var htmlHeader = "<tr><th class=\"col-name\" rowspan=\"2\">姓名</th>";
+
+  if (hasInline && rankCount > 0) {
+    // Inline-ranks mode: each subject gets score + ALL rank columns
+    for (var si = 0; si < sortedSubjects.length; si++) {
+      htmlHeader += "<th class=\"col-subject\" colspan=\"" + (2 + 2*rankCount) + "\">" + escapeHtml(sortedSubjects[si]) + "</th>";
+    }
+    // Category totals
+    for (var ct = 0; ct < categoryTotalLabels.length; ct++) {
+      htmlHeader += "<th class=\"col-subject\" colspan=\"" + (2 + 2*rankCount) + "\">" + escapeHtml(categoryTotalLabels[ct]) + "</th>";
+    }
+    // Also show global total label if present
+    if (allTotalLabels.length > 0) {
+      htmlHeader += "<th class=\"col-subject\" colspan=\"" + (2 + 2*rankCount) + "\">" + escapeHtml(allTotalLabels[0] || "总分") + "</th>";
+    }
+  } else {
+    // Legacy mode
+    for (var si = 0; si < sortedSubjects.length; si++) {
+      htmlHeader += "<th class=\"col-subject\" colspan=\"2\">" + escapeHtml(sortedSubjects[si]) + "</th>";
     }
     if (allTotalLabels.length > 0) {
-      var tLabel = allTotalLabels[0];
-      var totals = student["total_" + tLabel] || [];
-      var tdiffs = computeScoreDiffs(totals);
-      bodyHtml += '<td>' + totals.map(function(s, i) {
-        return student.missing[i] ? '<span class="cell-missing">\u7f3a\u8003</span>' : (s != null ? s : "-");
-      }).join("  ") + '</td>';
-      bodyHtml += '<td>' + tdiffs.map(function(d) {
-        var c = formatDiffCell(d, "score");
-        return '<span class="' + c.className + '">' + c.display + '</span>';
-      }).join("  ") + '</td>';
+      htmlHeader += "<th class=\"col-subject\" colspan=\"2\">" + escapeHtml(allTotalLabels[0] || "总分") + "</th>";
     }
-    for (var rk = 0; rk < allRankTypes.length; rk++) {
-      var rtype = allRankTypes[rk];
-      var ranks = student["rank_" + rtype] || [];
-      var rdiffs = computeRankDiffs(ranks);
-      bodyHtml += '<td>' + ranks.map(function(r, i) {
-        return student.missing[i] ? '<span class="cell-missing">\u7f3a\u8003</span>' : (r != null ? r : "-");
-      }).join("  ") + '</td>';
-      bodyHtml += '<td>' + rdiffs.map(function(d) {
-        var c = formatDiffCell(d, "rank");
-        return '<span class="' + c.className + '">' + c.display + '</span>';
-      }).join("  ") + '</td>';
+    for (var ti = 0; ti < allRankTypes.length; ti++) {
+      htmlHeader += "<th class=\"col-subject\" colspan=\"2\">" + escapeHtml(getRankLabel(allRankTypes[ti])) + "</th>";
     }
-    bodyHtml += '</tr>';
+  }
+
+  htmlHeader += "</tr><tr>";
+
+  if (hasInline && rankCount > 0) {
+    for (var sj = 0; sj < sortedSubjects.length; sj++) {
+      htmlHeader += "<th class=\"col-score\">成绩</th><th class=\"col-diff\">进退</th>";
+      for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+        var shortLabel = allRankTypeLabels[rk].length > 4 ? allRankTypeLabels[rk].substring(0, 4) + ".." : allRankTypeLabels[rk];
+        htmlHeader += "<th class=\"col-rank\" title=\"" + allRankTypeLabels[rk] + "\">" + escapeHtml(shortLabel) + "</th><th class=\"col-diff\">进退</th>";
+      }
+    }
+    for (var ct = 0; ct < categoryTotalLabels.length; ct++) {
+      htmlHeader += "<th class=\"col-score\">成绩</th><th class=\"col-diff\">进退</th>";
+      for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+        var shortLbl = allRankTypeLabels[rk].length > 4 ? allRankTypeLabels[rk].substring(0, 4) + ".." : allRankTypeLabels[rk];
+        htmlHeader += "<th class=\"col-rank\" title=\"" + allRankTypeLabels[rk] + "\">" + escapeHtml(shortLbl) + "</th><th class=\"col-diff\">进退</th>";
+      }
+    }
+    if (allTotalLabels.length > 0) {
+      htmlHeader += "<th class=\"col-score\">成绩</th><th class=\"col-diff\">进退</th>";
+      for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+        var sl = allRankTypeLabels[rk].length > 4 ? allRankTypeLabels[rk].substring(0, 4) + ".." : allRankTypeLabels[rk];
+        htmlHeader += "<th class=\"col-rank\" title=\"" + allRankTypeLabels[rk] + "\">" + escapeHtml(sl) + "</th><th class=\"col-diff\">进退</th>";
+      }
+    }
+  } else {
+    for (var sj = 0; sj < sortedSubjects.length; sj++) {
+      htmlHeader += "<th class=\"col-score\">成绩</th><th class=\"col-diff\">进退</th>";
+    }
+    if (allTotalLabels.length > 0) htmlHeader += "<th class=\"col-score\">成绩</th><th class=\"col-diff\">进退</th>";
+    for (var tj = 0; tj < allRankTypes.length; tj++) {
+      htmlHeader += "<th class=\"col-score\">排名</th><th class=\"col-diff\">进退</th>";
+    }
+  }
+  htmlHeader += "</tr>";
+  dom.tableHead.innerHTML = htmlHeader;
+
+  // Table body
+  var bodyHtml = "";
+
+  for (var sti = 0; sti < students.length; sti++) {
+    var student = students[sti];
+    bodyHtml += "<tr><td class=\"name-col\">" + escapeHtml(student.name) + "</td>";
+
+    if (hasInline && rankCount > 0) {
+      // Per-subject: score + ALL rank types
+      for (var sk = 0; sk < sortedSubjects.length; sk++) {
+        var subj = sortedSubjects[sk];
+        var scores = student["score_" + subj] || [];
+        var scoreDiffs = computeScoreDiffs(scores);
+
+        bodyHtml += "<td>" + scores.map(function(s, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (s != null ? s : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + scoreDiffs.map(function(d) {
+          var c = formatDiffCell(d, "score");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+
+        // All rank types for this subject
+        for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+          var rankType = allRankTypeLabels[rk];
+          var ranks = (student["subjRanks_" + subj] && student["subjRanks_" + subj][rankType]) || [];
+          var rankDiffs = computeRankDiffs(ranks);
+
+          bodyHtml += "<td>" + ranks.map(function(r, i) {
+            return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (r != null ? r : "-");
+          }).join("  ") + "</td>";
+          bodyHtml += "<td>" + rankDiffs.map(function(d) {
+            var c = formatDiffCell(d, "rank");
+            return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+          }).join("  ") + "</td>";
+        }
+      }
+
+      // Category totals
+      for (var ct = 0; ct < categoryTotalLabels.length; ct++) {
+        var ctl = categoryTotalLabels[ct];
+        var tvals = student["total_" + ctl] || [];
+        var tdiffs = computeScoreDiffs(tvals);
+
+        bodyHtml += "<td>" + tvals.map(function(s, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (s != null ? s : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + tdiffs.map(function(d) {
+          var c = formatDiffCell(d, "score");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+
+        for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+          var rt = allRankTypeLabels[rk];
+          var tranks = (student["totalRanks_" + ctl] && student["totalRanks_" + ctl][rt]) || [];
+          var trdiffs = computeRankDiffs(tranks);
+
+          bodyHtml += "<td>" + tranks.map(function(r, i) {
+            return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (r != null ? r : "-");
+          }).join("  ") + "</td>";
+          bodyHtml += "<td>" + trdiffs.map(function(d) {
+            var c = formatDiffCell(d, "rank");
+            return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+          }).join("  ") + "</td>";
+        }
+      }
+
+      // Global totals
+      if (allTotalLabels.length > 0) {
+        var tLabel = allTotalLabels[0];
+        var totals = student["total_" + tLabel] || [];
+        var tdiffs = computeScoreDiffs(totals);
+        bodyHtml += "<td>" + totals.map(function(s, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (s != null ? s : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + tdiffs.map(function(d) {
+          var c = formatDiffCell(d, "score");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+
+        for (var rk = 0; rk < allRankTypeLabels.length; rk++) {
+          bodyHtml += "<td>-</td><td>-</td>";
+        }
+      }
+    } else {
+      // Legacy mode
+      for (var sk = 0; sk < sortedSubjects.length; sk++) {
+        var subj = sortedSubjects[sk];
+        var scores = student["score_" + subj] || [];
+        var diffs = computeScoreDiffs(scores);
+        bodyHtml += "<td>" + scores.map(function(s, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (s != null ? s : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + diffs.map(function(d) {
+          var c = formatDiffCell(d, "score");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+      }
+      if (allTotalLabels.length > 0) {
+        var tLabel = allTotalLabels[0];
+        var totals = student["total_" + tLabel] || [];
+        var tdiffs = computeScoreDiffs(totals);
+        bodyHtml += "<td>" + totals.map(function(s, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (s != null ? s : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + tdiffs.map(function(d) {
+          var c = formatDiffCell(d, "score");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+      }
+      for (var rk = 0; rk < allRankTypes.length; rk++) {
+        var rtype = allRankTypes[rk];
+        var ranks = student["rank_" + rtype] || [];
+        var rdiffs = computeRankDiffs(ranks);
+        bodyHtml += "<td>" + ranks.map(function(r, i) {
+          return student.missing[i] ? "<span class=\"cell-missing\">缺考</span>" : (r != null ? r : "-");
+        }).join("  ") + "</td>";
+        bodyHtml += "<td>" + rdiffs.map(function(d) {
+          var c = formatDiffCell(d, "rank");
+          return "<span class=\"" + c.className + "\">" + c.display + "</span>";
+        }).join("  ") + "</td>";
+      }
+    }
+    bodyHtml += "</tr>";
   }
   dom.tableBody.innerHTML = bodyHtml;
   bindRowClicks(state, students, orderedFiles);
   dom.exportXlsx.disabled = false;
   dom.exportCsv.disabled = false;
   dom.trendPanel.classList.remove("open");
+
+  // Show rank comparison note if inline format detected
+  showInlineRankNote(hasInline);
+}
+
+function showInlineRankNote(hasInline) {
+  var note = document.getElementById("inlineRankNote");
+  if (!note) {
+    note = document.createElement("div");
+    note.id = "inlineRankNote";
+    note.className = "inline-rank-note";
+    var resultHeader = dom.resultArea.querySelector(".result-header");
+    if (resultHeader) {
+      resultHeader.insertAdjacentElement("afterend", note);
+    }
+  }
+  if (!hasInline) {
+    note.style.display = "none";
+    return;
+  }
+  note.style.display = "";
+  note.textContent = "每科含成绩+排名对比，排名进退 ↑N 表示排名上升 N 名，↓N 表示排名下降 N 名";
 }
 
 function bindRowClicks(state, students, orderedFiles) {
@@ -359,7 +525,7 @@ function bindRowClicks(state, students, orderedFiles) {
       var student = students[idx];
       dom.trendStudentName.textContent = student.name;
       if (typeof Chart === "undefined") {
-        dom.trendGrid.innerHTML = '<p style="padding:16px;color:var(--text-muted);">Chart.js \u6b63\u5728\u52a0\u8f7d\u4e2d\uff0c\u8bf7\u7a0d\u5019\u2026</p>';
+        dom.trendGrid.innerHTML = "<p style=\"padding:16px;color:var(--text-muted);\">Chart.js 正在加载中，请稍候…</p>";
       } else {
         renderTrendCharts(dom.trendGrid, student, orderedFiles, Chart);
       }
@@ -371,12 +537,12 @@ function bindRowClicks(state, students, orderedFiles) {
 export function bindExports(state) {
   dom.exportXlsx.addEventListener("click", function() {
     if (!state.matchedResult || state.files.length < 2) return;
-    if (typeof XLSX === "undefined") { showToast("SheetJS \u6b63\u5728\u52a0\u8f7d\u4e2d\uff0c\u8bf7\u7a0d\u5019\u518d\u8bd5"); return; }
-    exportXLSX(state, XLSX); showToast("Excel \u5df2\u5bfc\u51fa");
+    if (typeof XLSX === "undefined") { showToast("SheetJS 正在加载中，请稍候再试"); return; }
+    exportXLSX(state, XLSX); showToast("Excel 已导出");
   });
   dom.exportCsv.addEventListener("click", function() {
     if (!state.matchedResult || state.files.length < 2) return;
-    exportCSV(state); showToast("CSV \u5df2\u5bfc\u51fa");
+    exportCSV(state); showToast("CSV 已导出");
   });
 }
 
@@ -395,11 +561,11 @@ console.log("Onboarding dismissed:", obState.dismissed);
 function defineOnboardingSteps() {
   console.log("Func Def Onboarding dismissed:", obState.dismissed);
   return [
-    { id: "upload", target: function() { return dom.uploadDrop; }, text: "\u628a\u591a\u6b21\u8003\u8bd5\u7684\u6210\u7ee9 Excel \u6587\u4ef6\u62d6\u5230\u8fd9\u91cc", position: "bottom" },
-    { id: "cards", target: function() { return dom.cardsContainer; }, text: "\u62d6\u62fd\u5361\u7247\u53ef\u4ee5\u8c03\u6574\u8003\u8bd5\u5bf9\u6bd4\u7684\u987a\u5e8f", position: "bottom" },
-    { id: "table", target: function() { return dom.tableWrapper; }, text: "\u8fd9\u91cc\u5c55\u793a\u6bcf\u4e2a\u540c\u5b66\u5404\u79d1\u6210\u7ee9\u548c\u8fdb\u9000\u60c5\u51b5\uff0c\u70b9\u51fb\u4efb\u610f\u4e00\u884c\u53ef\u4ee5\u5c55\u5f00\u6210\u7ee9\u8d70\u52bf\u56fe", position: "top" },
-    { id: "export", target: function() { return dom.exportXlsx; }, text: "\u5bf9\u6bd4\u5b8c\u6210\u540e\u53ef\u4ee5\u5bfc\u51fa Excel \u6216 CSV", position: "top" },
-    { id: "helpBtn", target: function() { return dom.helpBtn; }, text: "\u70b9\u51fb\u6b64\u5904\u53ef\u4ee5\u91cd\u65b0\u6253\u5f00\u5e2e\u52a9", position: "top" }
+    { id: "upload", target: function() { return dom.uploadDrop; }, text: "把多次考试的成绩 Excel 文件拖到这里", position: "bottom" },
+    { id: "cards", target: function() { return dom.cardsContainer; }, text: "拖拽卡片可以调整考试对比的顺序", position: "bottom" },
+    { id: "table", target: function() { return dom.tableWrapper; }, text: "这里展示每个同学各科成绩和进退情况，点击任意一行可以展开成绩走势图", position: "top" },
+    { id: "export", target: function() { return dom.exportXlsx; }, text: "对比完成后可以导出 Excel 或 CSV", position: "top" },
+    { id: "helpBtn", target: function() { return dom.helpBtn; }, text: "点击此处可以重新打开帮助", position: "top" }
   ];
 }
 
@@ -471,7 +637,7 @@ function showStep(idx) {
   }
 
   dom.bubbleText.textContent = step.text;
-  dom.bubbleNext.textContent = (idx >= obState.steps.length - 1 && nextPage == true) ? "\u5b8c\u6210" : "\u4e0b\u4e00\u6b65";
+  dom.bubbleNext.textContent = (idx >= obState.steps.length - 1 && nextPage == true) ? "完成" : "下一步";
 
   // force layout before measuring
   dom.onboardingBubble.style.display = "block";
@@ -567,19 +733,3 @@ export function isOnboardingActive() {
 
 function escapeHtml(str) { var div = document.createElement("div"); div.textContent = str; return div.innerHTML; }
 
-// export function isOnboardingActive() { 
-//     return !obState.dismissed && clicked === true; 
-// }
-
-// 需要时直接调用
-// function ReactivateFunc() {
-//     console.log("Running isOnboardingActive check");
-//     const result = isOnboardingActive();  // 调用函数
-//     console.log("结果:", result);
-//     return result;
-// }
-// 
-// 
-// ReactivateFunc();
-// ReactivateFunc();
-// setInterval(ReactivateFunc, 1000);  // 每秒检查一次

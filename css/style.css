@@ -1,4 +1,4 @@
-/* ===== Reset & Base ===== */
+﻿/* ===== Reset & Base ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -249,3 +249,6 @@ body {
 .table-wrapper::-webkit-scrollbar-track { background: transparent; }
 .table-wrapper::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { background: #b0b7c3; }
+
+
+.inline-rank-note { padding: 6px 12px; font-size: 0.8rem; color: #6b7280; background: #f0f4ff; border-bottom: 1px solid #dbe4f0; text-align: center; }
