@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成绩对比分析工具</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script>
+  <script type="module" src="js/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">成绩对比分析</h1>
+    <p class="app-subtitle">拖入多次考试成绩单，自动对比各科进退步</p>
+    <button class="help-btn" id="helpBtn" title="查看指引" aria-label="查看指引">?</button>
+  </header>
+
+  <main class="app-main">
+    <!-- Empty state -->
+    <section class="empty-state" id="emptyState">
+      <div class="empty-illustration">
+        <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="30" y="10" width="140" height="120" rx="8" stroke="#c0c7cf" stroke-width="2" fill="#f8f9fa"/>
+          <rect x="46" y="30" width="108" height="8" rx="4" fill="#e2e6ea"/>
+          <rect x="46" y="46" width="80" height="6" rx="3" fill="#e2e6ea"/>
+          <rect x="46" y="60" width="108" height="6" rx="3" fill="#e2e6ea"/>
+          <rect x="46" y="74" width="64" height="6" rx="3" fill="#e2e6ea"/>
+          <rect x="46" y="88" width="90" height="6" rx="3" fill="#e2e6ea"/>
+          <rect x="46" y="102" width="72" height="6" rx="3" fill="#e2e6ea"/>
+          <path d="M160 100L178 85L186 92L174 107L160 100Z" fill="#4a90d9" opacity="0.6"/>
+          <path d="M178 55L186 45L194 52L184 64L178 55Z" fill="#4a90d9" opacity="0.4"/>
+          <path d="M152 50L160 40L168 47L158 59L152 50Z" fill="#4a90d9" opacity="0.3"/>
+          <path d="M100 155C100 155 60 140 100 130C140 120 100 155 100 155Z" fill="#e2e6ea"/>
+        </svg>
+      </div>
+      <p class="empty-title">拖入多个 Excel 文件开始分析</p>
+      <p class="empty-desc">支持 .xlsx / .xls 格式，每个文件代表一次考试成绩单</p>
+    </section>
+
+    <!-- Upload zone -->
+    <section class="upload-zone" id="uploadZone">
+      <div class="upload-drop" id="uploadDrop">
+        <svg class="upload-icon" viewBox="0 0 48 48" fill="none">
+          <path d="M24 8L24 32M24 8L16 16M24 8L32 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 30V36C10 38.2091 11.7909 40 14 40H34C36.2091 40 38 38.2091 38 36V30" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <p class="upload-text">拖拽 Excel 文件到此处</p>
+        <p class="upload-hint">或 <label class="upload-link" tabindex="0">点击选择文件</label></p>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls" hidden>
+      </div>
+      <p class="upload-requirement" id="fileCountHint">至少需要 2 个文件（每次考试一个文件）</p>
+    </section>
+
+    <!-- File cards -->
+    <section class="cards-area" id="cardsArea">
+      <h2 class="section-title">考试列表 <span class="section-hint">— 拖拽卡片调整顺序</span></h2>
+      <div class="cards-container" id="cardsContainer"></div>
+    </section>
+
+    <!-- Result table -->
+    <section class="result-area" id="resultArea">
+      <div class="result-header">
+        <h2 class="section-title">对比结果</h2>
+        <div class="export-buttons">
+          <button class="export-btn export-xlsx" id="exportXlsx" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            导出 Excel
+          </button>
+          <button class="export-btn export-csv" id="exportCsv" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            导出 CSV
+          </button>
+        </div>
+      </div>
+      <div class="table-wrapper" id="tableWrapper">
+        <table class="result-table" id="resultTable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <!-- Expandable trend panel -->
+      <div class="trend-panel" id="trendPanel">
+        <div class="trend-inner">
+          <button class="trend-close" id="trendClose">&times;</button>
+          <h3 class="trend-student-name" id="trendStudentName"></h3>
+          <div class="trend-grid" id="trendGrid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Onboarding overlay -->
+  <div class="onboarding-overlay" id="onboardingOverlay">
+    <div class="onboarding-bubble" id="onboardingBubble">
+      <div class="bubble-arrow"></div>
+      <p class="bubble-text" id="bubbleText"></p>
+      <div class="bubble-actions">
+        <button class="bubble-skip" id="bubbleSkip">跳过指引</button>
+        <button class="bubble-next" id="bubbleNext">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+</body>
+</html>
